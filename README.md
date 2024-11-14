@@ -7,5 +7,10 @@ This logger library uses an idea from the StackOverflow thread above that an enc
 ## Why?
 I need something to do while waiting an hour and thirty minutes for my next class to start. I should've chose a better schedule for my first semester!
 
+## Features?
+None, because I suck. In the future we might have
+* Some more cool formatting stuff (because formatting is cool)
+* ??? (feel free to make an issue for feature requests)
+
 ## Benchmark
 ![benchmark_image](images/benchmark.png)
