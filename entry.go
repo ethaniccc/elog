@@ -47,9 +47,13 @@ func (e *entry) Msg(msg string) {
 	e.msg.WriteString("\"\n")
 	e.has_msg = true
 
-	if _, err := e.log.CleanOut.Write(e.msg.Bytes()); err != nil {
-		fmt.Println("failed to write to clean out:", err)
+	// It is possible that the user does not want to have the clean output written anywhere.
+	if e.log.CleanOut != nil {
+		if _, err := e.log.CleanOut.Write(e.msg.Bytes()); err != nil {
+			fmt.Println("failed to write to clean out:", err)
+		}
 	}
+
 	if err := e.log.encrypt_entry(e); err != nil {
 		fmt.Println("failed to encrypt entry:", err)
 	}
