@@ -17,7 +17,7 @@ type SeedFunc func(seed uint64) uint64
 type Logger struct {
 	sync.Mutex
 
-	CleanOut io.WriteCloser
+	CleanOut io.Writer
 	Out      io.WriteCloser
 
 	Modes uint64
@@ -59,6 +59,10 @@ func (l *Logger) encrypt_entry(e *entry) error {
 	l.Lock()
 	defer l.Unlock()
 
+	if l.Out == nil {
+		return nil
+	}
+
 	aes, err := aes.NewCipher(l.last_hash)
 	if err != nil {
 		return err
@@ -77,11 +81,12 @@ func (l *Logger) encrypt_entry(e *entry) error {
 
 	// We remove the nonce from the encrypted entry as we should be able manually
 	// calculate it when decoding w/ the seed function.
-	ciphertext := append(make([]byte, 8), gcm.Seal(nonce, nonce, e.msg, nil)[nonce_size:]...)
+	msg := e.msg.Bytes()
+	ciphertext := append(make([]byte, 8), gcm.Seal(nonce, nonce, msg, nil)[nonce_size:]...)
 	binary.LittleEndian.PutUint64(ciphertext, uint64(len(ciphertext)-8))
 	_, err = l.Out.Write(ciphertext)
 
-	data_hash := sha256.Sum256(e.msg)
+	data_hash := sha256.Sum256(msg)
 	copy(l.last_hash, data_hash[:])
 	new_seed := l.seed_func(l.last_seed)
 	if new_seed == l.last_seed {

@@ -1,6 +1,7 @@
 package elog
 
 import (
+	"bytes"
 	"fmt"
 	"strconv"
 	"sync"
@@ -16,7 +17,7 @@ type entry struct {
 	entry_type string
 	entry_mode uint64
 
-	msg       []byte
+	msg       *bytes.Buffer
 	extra_dat []byte
 
 	log     *Logger
@@ -34,23 +35,19 @@ func (e *entry) Msg(msg string) {
 
 	if len(e.extra_dat) > 0 {
 		e.extra_dat = append(e.extra_dat, ']')
-		e.msg = append(e.msg, e.extra_dat...)
-		e.msg = append(e.msg, ' ')
+		e.msg.Write(e.extra_dat)
 	}
 
-	e.msg = append(e.msg, '[')
-	e.msg = append(e.msg, e.entry_type...)
-	e.msg = append(e.msg, ']')
-	e.msg = append(e.msg, ':')
+	e.msg.WriteRune('[')
+	e.msg.WriteString(e.entry_type)
+	e.msg.WriteString("]:")
 
-	e.msg = append(e.msg, ' ')
-	e.msg = append(e.msg, '"')
-	e.msg = append(e.msg, msg...)
-	e.msg = append(e.msg, '"')
-	e.msg = append(e.msg, '\n')
+	e.msg.WriteString(" \"")
+	e.msg.WriteString(msg)
+	e.msg.WriteString("\"\n")
 	e.has_msg = true
 
-	if _, err := e.log.CleanOut.Write(e.msg); err != nil {
+	if _, err := e.log.CleanOut.Write(e.msg.Bytes()); err != nil {
 		fmt.Println("failed to write to clean out:", err)
 	}
 	if err := e.log.encrypt_entry(e); err != nil {
@@ -66,7 +63,10 @@ func (e *entry) Time() *entry {
 func (e *entry) Str(name string, v string) *entry {
 	e.init_extradat()
 	e.append_prefix(name)
+
+	e.extra_dat = append(e.extra_dat, '"')
 	e.extra_dat = append(e.extra_dat, v...)
+	e.extra_dat = append(e.extra_dat, '"')
 
 	return e
 }
@@ -83,6 +83,18 @@ func (e *entry) Int(name string, v int64) *entry {
 	e.init_extradat()
 	e.append_prefix(name)
 	e.extra_dat = strconv.AppendInt(e.extra_dat, v, 10)
+
+	return e
+}
+
+func (e *entry) Float32(name string, v float32) *entry {
+	return e.Float(name, float64(v))
+}
+
+func (e *entry) Float(name string, v float64) *entry {
+	e.init_extradat()
+	e.append_prefix(name)
+	e.extra_dat = strconv.AppendFloat(e.extra_dat, v, 'g', 10, 64)
 
 	return e
 }
@@ -105,7 +117,7 @@ func (e *entry) init_extradat() {
 var entry_pool = sync.Pool{
 	New: func() any {
 		return &entry{
-			msg:       make([]byte, 0, MAX_PREFERED_LOG_SIZE),
+			msg:       bytes.NewBuffer(make([]byte, 0, MAX_PREFERED_LOG_SIZE)),
 			extra_dat: make([]byte, 0, MAX_PREFERED_EXTRA_DATA_SIZE),
 		}
 	},
@@ -114,7 +126,7 @@ var entry_pool = sync.Pool{
 func free_entry(e *entry) {
 	// See: https://github.com/golang/go/issues/23199
 	// TLDR: Objects inside a pool should have a (roughly) the same amount of memory utilized.
-	if cap(e.msg) > MAX_PREFERED_LOG_SIZE {
+	if e.msg.Cap() > MAX_PREFERED_LOG_SIZE {
 		return
 	}
 
@@ -126,7 +138,7 @@ func new_entry(l *Logger, mode uint64) *entry {
 	e := entry_pool.Get().(*entry)
 	e.entry_mode = mode
 	e.entry_type = Modes[mode]
-	e.msg = e.msg[:0]
+	e.msg.Reset()
 	e.extra_dat = e.extra_dat[:0]
 
 	e.log = l

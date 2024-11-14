@@ -5,7 +5,6 @@ import (
 	"crypto/cipher"
 	"crypto/sha256"
 	"encoding/binary"
-	"fmt"
 	"io"
 	"os"
 
@@ -35,7 +34,6 @@ func Decrypt(encrypted, decrypted *os.File, opts SeedOpts) error {
 
 		ciphertext := encrypted_data[current_index : current_index+entry_length]
 		current_index += entry_length
-		fmt.Println("entry is", entry_length, "bytes long")
 
 		aes, err := aes.NewCipher(current_hash)
 		if err != nil {
@@ -61,8 +59,6 @@ func Decrypt(encrypted, decrypted *os.File, opts SeedOpts) error {
 		copy(current_hash, new_hash[:])
 		current_seed = opts.F(current_seed)
 		randomizer.Seed(current_seed)
-
-		fmt.Println("decrypted:", string(plaintext))
 	}
 
 	return nil
